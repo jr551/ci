@@ -1,0 +1,90 @@
+name: Node CI
+
+# Reusable: checkout, set up Node, install (npm/pnpm/yarn), then run the caller's
+# lint/test/build commands. Runs on the ephemeral pve runner (supermicro-server).
+
+on:
+  workflow_call:
+    inputs:
+      node-version:
+        type: string
+        default: "22"
+      working-directory:
+        type: string
+        default: "."
+      install-command:
+        type: string
+        default: ""
+      lint-command:
+        type: string
+        default: ""
+      test-command:
+        type: string
+        default: ""
+      build-command:
+        type: string
+        default: ""
+      artifact-path:
+        type: string
+        default: ""
+      artifact-name:
+        type: string
+        default: dist
+      timeout-minutes:
+        type: number
+        default: 30
+
+permissions:
+  contents: read
+
+jobs:
+  node:
+    name: node
+    runs-on: [self-hosted, supermicro-server]
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: Install
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.install-command }}" ]; then
+            ${{ inputs.install-command }}
+          elif [ -f package-lock.json ]; then
+            npm ci
+          elif [ -f pnpm-lock.yaml ]; then
+            corepack enable && pnpm install --frozen-lockfile
+          elif [ -f yarn.lock ]; then
+            corepack enable && yarn install --immutable
+          else
+            npm install
+          fi
+
+      - name: Lint
+        if: inputs.lint-command != ''
+        run: ${{ inputs.lint-command }}
+
+      - name: Test
+        if: inputs.test-command != ''
+        run: ${{ inputs.test-command }}
+
+      - name: Build
+        if: inputs.build-command != ''
+        run: ${{ inputs.build-command }}
+
+      - name: Upload artifacts
+        if: inputs.artifact-path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+          if-no-files-found: error
