@@ -1,0 +1,34 @@
+name: Validate
+
+# Reusable: checkout and run a caller-supplied shell script on the ephemeral pve
+# runner (supermicro-server). Good for repo/package validation jobs.
+
+on:
+  workflow_call:
+    inputs:
+      commands:
+        description: Shell script to run
+        type: string
+        required: true
+      timeout-minutes:
+        type: number
+        default: 20
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    name: validate
+    runs-on: [self-hosted, supermicro-server]
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Validate
+        run: |
+          set -euo pipefail
+          ${{ inputs.commands }}
