@@ -1,0 +1,66 @@
+name: Linux CMake CI
+
+# Reusable: checkout, install a toolchain with apt, configure and build with CMake/Ninja,
+# optionally upload build artifacts. Runs on the ephemeral pve runner (supermicro-server).
+
+on:
+  workflow_call:
+    inputs:
+      apt-packages:
+        description: Space-separated apt packages to install
+        type: string
+        default: cmake ninja-build
+      cmake-args:
+        description: Extra arguments for the configure step
+        type: string
+        default: -DCMAKE_BUILD_TYPE=Release
+      build-target:
+        description: CMake target to build
+        type: string
+        default: all
+      artifact-path:
+        description: Path(s) to upload as an artifact (empty to skip)
+        type: string
+        default: ""
+      artifact-name:
+        description: Artifact name
+        type: string
+        default: build-artifacts
+      timeout-minutes:
+        description: Job timeout in minutes
+        type: number
+        default: 60
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build (linux)
+    runs-on: [self-hosted, supermicro-server]
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install toolchain
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y ${{ inputs.apt-packages }}
+
+      - name: Configure
+        run: cmake -G Ninja ${{ inputs.cmake-args }} -B build -S .
+
+      - name: Build
+        run: cmake --build build --target ${{ inputs.build-target }} --parallel
+
+      - name: Upload artifacts
+        if: inputs.artifact-path != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: ${{ inputs.artifact-path }}
+          if-no-files-found: error
