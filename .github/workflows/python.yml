@@ -1,0 +1,69 @@
+name: Python CI
+
+# Reusable: checkout, set up Python, install (uv/pip), run the caller's lint/test
+# commands. Runs on the ephemeral pve runner (supermicro-server).
+
+on:
+  workflow_call:
+    inputs:
+      python-version:
+        type: string
+        default: "3.12"
+      working-directory:
+        type: string
+        default: "."
+      install-command:
+        type: string
+        default: ""
+      lint-command:
+        type: string
+        default: ""
+      test-command:
+        type: string
+        default: ""
+      timeout-minutes:
+        type: number
+        default: 30
+
+permissions:
+  contents: read
+
+jobs:
+  python:
+    name: python
+    runs-on: [self-hosted, supermicro-server]
+    timeout-minutes: ${{ inputs.timeout-minutes }}
+    defaults:
+      run:
+        working-directory: ${{ inputs.working-directory }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ inputs.python-version }}
+
+      - name: Install
+        run: |
+          set -euo pipefail
+          if [ -n "${{ inputs.install-command }}" ]; then
+            ${{ inputs.install-command }}
+          elif [ -f uv.lock ]; then
+            python -m pip install --user uv && python -m uv sync --frozen
+          elif [ -f pyproject.toml ]; then
+            python -m pip install --upgrade pip && python -m pip install -e .
+          elif [ -f requirements.txt ]; then
+            python -m pip install --upgrade pip && python -m pip install -r requirements.txt
+          else
+            echo "no python dependency manifest found"
+          fi
+
+      - name: Lint
+        if: inputs.lint-command != ''
+        run: ${{ inputs.lint-command }}
+
+      - name: Test
+        if: inputs.test-command != ''
+        run: ${{ inputs.test-command }}
