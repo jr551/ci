@@ -10,6 +10,10 @@ on:
         description: Shell script to run
         type: string
         required: true
+      submodules:
+        description: Check out submodules too
+        type: boolean
+        default: false
       timeout-minutes:
         type: number
         default: 20
@@ -26,7 +30,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: ${{ inputs.submodules }}
 
       - name: Validate
         run: |
